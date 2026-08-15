@@ -1,0 +1,11 @@
+# Local environment variables
+.env
+
+# Python caches
+__pycache__/
+
+# Byte-compiled / optimized / DLL files
+*.py[cod]
+
+# VS Code workspace settings
+.vscode/

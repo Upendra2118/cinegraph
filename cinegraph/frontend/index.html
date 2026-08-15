@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CineGraph — Movie Influence Explorer</title>
+<style>
+:root{--bg:#0a0a0f;--card:#16161f;--border:#292936;--gold:#c9a84c;--cyan:#4ecdc4;--text:#e8e6f0;--muted:#858197;--red:#e05252}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Arial,sans-serif}button,input{font:inherit}
+nav{position:sticky;top:0;z-index:10;height:60px;padding:0 24px;display:flex;align-items:center;gap:20px;background:#0a0a0fee;border-bottom:1px solid var(--border)}
+.logo{font-size:22px;font-weight:bold;color:var(--gold);cursor:pointer}.logo span{color:var(--text)}
+nav input{margin-left:auto;width:260px;padding:9px 14px;border-radius:20px;border:1px solid var(--border);background:#111118;color:var(--text);outline:none}
+main{max-width:1200px;margin:auto;padding:28px}.hero{text-align:center;padding:50px 10px}.eyebrow{color:var(--gold);letter-spacing:3px;font-size:12px}.hero h1{font-size:clamp(38px,6vw,68px);margin:12px 0}.hero h1 em{color:var(--gold)}.hero p{max-width:650px;margin:0 auto 30px;color:var(--muted);line-height:1.7}
+.stats{display:flex;justify-content:center;gap:50px;flex-wrap:wrap}.stat b{display:block;color:var(--gold);font-size:28px}.stat small{color:var(--muted)}
+.section{margin:30px 0}.section h2{font-size:22px}.genres{display:flex;gap:8px;flex-wrap:wrap}.genre{background:var(--card);color:var(--muted);border:1px solid var(--border);padding:8px 14px;border-radius:20px;cursor:pointer}.genre.active,.genre:hover{color:var(--gold);border-color:var(--gold)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:15px}.card{background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden;cursor:pointer}.card:hover{border-color:var(--gold);transform:translateY(-2px)}.poster{height:260px;background:#242432;display:flex;align-items:center;justify-content:center;font-size:55px}.info{padding:13px}.title{font-weight:bold;line-height:1.35}.meta{color:var(--muted);font-size:13px;margin-top:6px}.rating{color:var(--gold)}.pill{display:inline-block;background:#242432;color:var(--muted);font-size:11px;padding:3px 6px;margin:6px 4px 0 0;border-radius:3px}
+.back{border:0;background:none;color:var(--muted);cursor:pointer;margin-bottom:20px}.detail{display:grid;grid-template-columns:240px 1fr;gap:30px}.detailposter{height:360px;background:#242432;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:70px}.detail h1{font-size:40px;margin:0 0 8px}.tagline{color:var(--muted);font-style:italic}.overview{line-height:1.7}.chips{display:flex;flex-wrap:wrap;gap:8px}.chip{padding:7px 10px;background:#242432;border:1px solid var(--border);border-radius:6px;cursor:pointer}.chip:hover{border-color:var(--cyan);color:var(--cyan)}
+.panel{margin-top:28px}.panel h3{color:var(--gold);font-size:13px;letter-spacing:2px;border-bottom:1px solid var(--border);padding-bottom:8px}.chain{display:flex;gap:8px;overflow:auto;padding:10px 0}.node{white-space:nowrap;background:#242432;border:1px solid var(--border);padding:8px 12px;border-radius:6px;cursor:pointer}.node:hover{border-color:var(--gold)}.arrow{color:var(--gold);padding-top:8px}
+.error{padding:14px;background:#30181b;border:1px solid var(--red);color:#ff9a9a;border-radius:8px}.loading{text-align:center;padding:60px;color:var(--muted)}.empty{text-align:center;padding:50px;color:var(--muted)}
+.searchbox{position:relative}.results{position:absolute;right:0;top:45px;width:320px;background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden;z-index:20}.result{padding:12px;border-bottom:1px solid var(--border);cursor:pointer}.result:hover{background:#242432}
+@media(max-width:650px){nav{padding:0 12px}.logo{font-size:18px}nav input{width:160px}.detail{grid-template-columns:1fr}.detailposter{height:300px}main{padding:18px}.stats{gap:25px}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script>
+const {useState, useEffect} = React;
+const API = (location.protocol === 'file:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1') ? 'http://localhost:5000/api' : '/api';
+
+async function api(path) {
+	const r = await fetch(API + path);
+	if (!r.ok) throw new Error('HTTP ' + r.status);
+	return r.json();
+}
+
+const h = React.createElement;
+
+function MovieCard(props) {
+	const m = props.m;
+	const onClick = props.onClick;
+	return h('div', {className: 'card', onClick: onClick},
+		h('div', {className: 'poster'}, '🎬'),
+		h('div', {className: 'info'},
+			h('div', {className: 'title'}, m.title),
+			h('div', {className: 'meta'}, m.year, ' ', m.rating ? h('span', {className: 'rating'}, ' ★ ' + m.rating) : null),
+			(m.genres || []).slice(0, 3).map(function (g) { return h('span', {className: 'pill', key: g}, g); })
+		)
+	);
+}
+
+function Nav(props) {
+	const onHome = props.onHome;
+	const onMovie = props.onMovie;
+	const [q, setQ] = useState('');
+	const [rs, setRs] = useState([]);
+	useEffect(function () {
+		if (!q.trim()) {
+			setRs([]);
+			return;
+		}
+		const t = setTimeout(function () {
+			api('/movies/search?q=' + encodeURIComponent(q)).then(setRs).catch(function () { setRs([]); });
+		}, 250);
+		return function () { clearTimeout(t); };
+	}, [q]);
+	return h('nav', null,
+		h('div', {className: 'logo', onClick: onHome}, 'Cine', h('span', null, 'Graph')),
+		h('div', {className: 'searchbox'},
+			h('input', {placeholder: 'Search movies...', value: q, onChange: function (e) { setQ(e.target.value); }}),
+			rs.length ? h('div', {className: 'results'}, rs.map(function (m) { return h('div', {className: 'result', key: m.id, onMouseDown: function () { setQ(''); setRs([]); onMovie(m.id); }}, m.title + ' (' + m.year + ')'); })) : null
+		)
+	);
+}
+
+function Stats() {
+	const [s, setS] = useState(null);
+	useEffect(function () { api('/stats').then(setS).catch(function () {}); }, []);
+	if (!s) return null;
+	const items = [['movies', 'Films'], ['people', 'Filmmakers'], ['influences', 'Influence Links'], ['genres', 'Genres']];
+	return h('div', {className: 'stats'}, items.map(function (x) { return h('div', {className: 'stat', key: x[0]}, h('b', null, s[x[0]]), h('small', null, x[1])); }));
+}
+
+function Home(props) {
+	const onMovie = props.onMovie;
+	const [movies, setMovies] = useState([]);
+	const [genres, setGenres] = useState([]);
+	const [active, setActive] = useState(null);
+	const [err, setErr] = useState('');
+	useEffect(function () {
+		Promise.all([api('/movies'), api('/genres')]).then(function (results) {
+			setMovies(results[0]);
+			setGenres(results[1]);
+		}).catch(function (e) { setErr('Could not connect to the backend. Start Flask on port 5000.'); });
+	}, []);
+	var shown = active ? movies.filter(function (m) { return (m.genres || []).includes(active); }) : movies;
+	return h(React.Fragment, null,
+		h('div', {className: 'hero'},
+			h('div', {className: 'eyebrow'}, 'GRAPH-POWERED CINEMA'),
+			h('h1', null, 'Explore the ', h('em', null, 'Influence'), h('br'), 'Behind Every Film'),
+			h('p', null, 'Trace multi-hop influence chains, discover collaborations, and find your next watch — powered by Neo4j.'),
+			h(Stats)
+		),
+		err && h('div', {className: 'error'}, err),
+		h('div', {className: 'section'},
+			h('h2', null, 'Genres'),
+			h('div', {className: 'genres'},
+				h('button', {className: 'genre ' + (!active ? 'active' : ''), onClick: function () { setActive(null); }}, 'All'),
+				genres.map(function (g) { return h('button', {className: 'genre ' + (active === g.name ? 'active' : ''), key: g.name, onClick: function () { setActive(g.name); }}, g.name + ' · ' + g.movieCount); })
+			)
+		),
+		h('h2', null, (active || 'All Movies')),
+		h('div', {className: 'grid'}, shown.map(function (m) { return h(MovieCard, {key: m.id, m: m, onClick: function () { onMovie(m.id); }}); }))
+	);
+}
+
+function Detail(props) {
+	const id = props.id;
+	const onBack = props.onBack;
+	const onMovie = props.onMovie;
+	const onPerson = props.onPerson;
+	const [d, setD] = useState(null);
+	const [chain, setChain] = useState(null);
+	const [rec, setRec] = useState([]);
+	const [err, setErr] = useState('');
+	useEffect(function () {
+		setD(null);
+		Promise.all([api('/movies/' + encodeURIComponent(id)), api('/influence-chain/' + encodeURIComponent(id)), api('/recommendations/' + encodeURIComponent(id))]).then(function (results) {
+			setD(results[0]); setChain(results[1]); setRec(results[2]);
+		}).catch(function () { setErr('Could not load movie details.'); });
+	}, [id]);
+	if (err) return h(React.Fragment, null, h('button', {className: 'back', onClick: onBack}, '← Back'), h('div', {className: 'error'}, err));
+	if (!d) return h('div', {className: 'loading'}, 'Loading movie...');
+	function makeChain(x) {
+		if (x && x.length) {
+			return h('div', {className: 'chain'}, x.map(function (r, i) {
+				return h(React.Fragment, {key: i}, r.chain.map(function (n, j) {
+					return h(React.Fragment, {key: n.id + j}, h('div', {className: 'node', onClick: function () { onMovie(n.id); }}, n.title + ' (' + n.year + ')'), j < r.chain.length - 1 && h('span', {className: 'arrow'}, '→'));
+				}));
+			}));
+		}
+		return h('div', {className: 'empty'}, 'No influence links found.');
+	}
+	return h(React.Fragment, null,
+		h('button', {className: 'back', onClick: onBack}, '← Back'),
+		h('div', {className: 'detail'},
+			h('div', {className: 'detailposter'}, '🎬'),
+			h('div', null,
+				h('div', {className: 'eyebrow'}, d.year + ' · ' + (d.rating || 'N/A') + '/10'),
+				h('h1', null, d.title),
+				h('div', {className: 'tagline'}, d.tagline),
+				h('p', {className: 'overview'}, d.overview),
+				h('div', {className: 'chips'}, (d.genres || []).map(function (g) { return h('span', {className: 'chip', key: g}, g); }))
+			)
+		),
+		h('div', {className: 'panel'},
+			h('h3', null, 'CAST'),
+			h('div', {className: 'chips'}, (d.cast || []).filter(function (x) { return x.id; }).map(function (x) { return h('span', {className: 'chip', key: x.id, onClick: function () { onPerson(x.id); }}, x.name + (x.role ? ' — ' + x.role : '')); })),
+			h('h3', null, 'DIRECTORS'),
+			h('div', {className: 'chips'}, (d.directors || []).filter(function (x) { return x.id; }).map(function (x) { return h('span', {className: 'chip', key: x.id, onClick: function () { onPerson(x.id); }}, x.name); })),
+			h('h3', null, 'INFLUENCE CHAIN'), makeChain(chain && chain.descendants),
+			h('h3', null, 'RECOMMENDATIONS'),
+			h('div', {className: 'grid'}, rec.map(function (m) { return h(MovieCard, {key: m.id, m: m, onClick: function () { onMovie(m.id); }}); }))
+		)
+	);
+}
+
+function Person(props) {
+	const id = props.id;
+	const onBack = props.onBack;
+	const onMovie = props.onMovie;
+	const [d, setD] = useState(null);
+	const [c, setC] = useState([]);
+	useEffect(function () {
+		Promise.all([api('/people/' + id), api('/collaborators/' + id)]).then(function (results) { setD(results[0]); setC(results[1]); }).catch(function () {});
+	}, [id]);
+	if (!d) return h('div', {className: 'loading'}, 'Loading person...');
+	return h(React.Fragment, null,
+		h('button', {className: 'back', onClick: onBack}, '← Back'),
+		h('div', {className: 'detail'},
+			h('div', {className: 'detailposter'}, '👤'),
+			h('div', null,
+				h('div', {className: 'eyebrow'}, 'FILMMAKER / ACTOR'),
+				h('h1', null, d.name),
+				h('div', {className: 'meta'}, 'Born: ' + (d.born || 'Unknown')),
+				h('div', {className: 'panel'},
+					h('h3', null, 'FILMS'),
+					h('div', {className: 'grid'}, (d.movies || []).filter(function (x) { return x.id; }).map(function (m) { return h(MovieCard, {key: m.id, m: m, onClick: function () { onMovie(m.id); }}); })),
+					h('h3', null, 'COLLABORATORS'),
+					h('div', {className: 'chips'}, c.map(function (x) { return h('span', {className: 'chip', key: x.id}, x.name + ' · ' + x.sharedCount + ' shared'); }))
+				)
+			)
+		)
+	);
+}
+
+function App() {
+	const [view, setView] = useState({type: 'home'});
+	const nav = { onHome: function () { setView({type: 'home'}); }, onMovie: function (id) { setView({type: 'movie', id: id}); }, onPerson: function (id) { setView({type: 'person', id: id}); } };
+	return h(React.Fragment, null,
+		h(Nav, nav),
+		h('main', null, view.type === 'home' ? h(Home, {onMovie: nav.onMovie}) : view.type === 'movie' ? h(Detail, {id: view.id, onBack: nav.onHome, onMovie: nav.onMovie, onPerson: nav.onPerson}) : h(Person, {id: view.id, onBack: nav.onHome, onMovie: nav.onMovie}))
+	);
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+</script>
+</body>
+</html>
