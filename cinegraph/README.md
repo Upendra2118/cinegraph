@@ -29,6 +29,12 @@ cinegraph/
 
 IMPORTANT: Do not put your real Neo4j password in GitHub. If a real password was previously exposed, rotate it in your Neo4j provider.
 
+## Why a graph database?
+
+This project is about relationships, not just rows. Movies connect to genres, actors, directors, collaborators, and other films through influence links. A graph database stores these connections as first-class relationships, so queries like “show the influence chain from one film to another,” “find collaborators,” or “trace shared themes across titles” are much more natural and efficient than in a relational schema.
+
+A relational database would require lots of joins across tables for the same questions, while Neo4j can traverse relationships directly and return connected results quickly.
+
 ## Seed database
 
 From the project root:
